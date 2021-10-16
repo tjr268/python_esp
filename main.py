@@ -5,12 +5,11 @@ except:
 from machine import Pin
 from led_handlers import * 
 
-CONTENT = b"""\
-HTTP/1.0 200 OK
-
-Received command: %s, with values: %s, operation: %s
-"""
-
+CONTENT = ("HTTP/1.1 200 OK\n"
+         +"Content-Type: text/plain\n"
+         +"Access-Control-Allow-Origin: *\n"
+         +"\n" # Important!
+         +"Received command: %s, with values: %s, operation: %s\n")
 
 # DONT CHANGE UPDATE HANDLERS FILE ONLY
 def main(micropython_optimize=False):
