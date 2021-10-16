@@ -1,29 +1,54 @@
+''' This is the main loop that runs on the board after boot.py finishes.
+Currently this accepts GET requests and ignores all others. Further it 
+will close stop reading lines after the headers. This means it wont even read 
+data included in the request body. We get away with this because we are only
+interested in the URI. 
+
+Whenever the board receives a GET request it will parse the URI two objects
+the first entry in the path serves as the desired endpoint - ie it defines
+the handler function to run. Then any entries after that in the path will 
+be passed to the specified handler as a list where each entry is an item 
+in this list. Order is preserved, all values are treated as strings. All 
+handlers are defined separately in addition to the mapping between endpoints
+and handler functions. This is to ensure main.py never has to be changed 
+between boards/use cases. See handlers.py for more info.
+
+All handlers must return a (bool, string) tuple where the bool corresponds
+to the success of the operation and the string is a description which will 
+be sent to the client in the response body.
+
+Note that this is not the standard way of handling HTTP requests however
+it works well enough for this use case. 
+'''
+
 try:
     import usocket as socket
 except:
     import socket
 from machine import Pin
-from led_handlers import * 
+from handlers import * 
 
-CONTENT = ("HTTP/1.1 200 OK\n"
+SUCCESS_MESSAGE = ("HTTP/1.1 200 OK\n"
          +"Content-Type: text/plain\n"
          +"Access-Control-Allow-Origin: *\n"
-         +"\n" # Important!
-         +"Received command: %s, with values: %s, operation: %s\n")
+         +"\n")
+
+FAIL_MESSAGE = ("HTTP/1.1 400 Bad Request\n"
+         +"Content-Type: text/plain\n"
+         +"Access-Control-Allow-Origin: *\n"
+         +"\n")
+
 
 # DONT CHANGE UPDATE HANDLERS FILE ONLY
-def main(micropython_optimize=False):
+def main():
     s = socket.socket()
 
-    # Binding to all interfaces - server will be accessible to other hosts!
     ai = socket.getaddrinfo("0.0.0.0", 8080)
-    print("Bind address info:", ai)
     addr = ai[0][-1]
 
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(addr)
     s.listen(5)
-    print("Listening, connect your browser to http://<this_host>:8080/")
 
     while True:
         # socket stuff 
@@ -32,28 +57,17 @@ def main(micropython_optimize=False):
         client_addr = res[1]
         print("Client address:", client_addr)
         print("Client socket:", client_sock)
-
-        if not micropython_optimize:
-            # To read line-oriented protocol (like HTTP) from a socket (and
-            # avoid short read problem), it must be wrapped in a stream (aka
-            # file-like) object. That's how you do it in CPython:
-            client_stream = client_sock.makefile("rwb")
-        else:
-            # .. but MicroPython socket objects support stream interface
-            # directly, so calling .makefile() method is not required. If
-            # you develop application which will run only on MicroPython,
-            # especially on a resource-constrained embedded device, you
-            # may take this shortcut to save resources.
-            client_stream = client_sock
-
         print("Request:")
 
+        command = None
         while True:
-            stream_line = client_stream.readline()
+            stream_line = client_sock.readline()
+            # currently set to only read the headers and break before body since expecting a GET and only need URI
             if stream_line == b"" or stream_line == b"\r\n":
                 break
             print(stream_line)
             stream_line_decode = stream_line.decode("utf-8")
+
             if stream_line_decode.startswith("GET") and not stream_line_decode.startswith("GET /fav"):
                 endpoint = stream_line_decode.split()[1]
                 endpoint_list = endpoint.split("/")
@@ -61,24 +75,23 @@ def main(micropython_optimize=False):
                 command = endpoint_list.pop(0)
                 values = endpoint_list
 
-        # ONLY CHANGE THESE: command control handlers
+
+        # build response
         if command in HANDLER_TABLE.keys():
             handler_function = HANDLER_TABLE[command]
-            handler_response = handler_function(command, values)
+            handler_response = handler_function(values)
+            if handler_response[0] == False:
+                client_response = FAIL_MESSAGE + handler_response[1] + "\n"
+            elif handler_response[0] == True:
+                client_response = SUCCESS_MESSAGE + handler_response[1] + "\n"
         else:
-            handler_response = "Command not recognized"
+            client_response = FAIL_MESSAGE + "Command not recognized\n"
         
 
         # respond to client
-        client_response = CONTENT % (command, values, handler_response)
         print("\nResponse: \n"+ str(client_response))
-        client_stream.write(client_response)
-        client_stream.close()
-        
-        if not micropython_optimize:
-            client_sock.close()
-        print()
+        client_sock.write(client_response)
+        client_sock.close()
 
 
-
-main(micropython_optimize=True)
+main()

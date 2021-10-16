@@ -9,12 +9,12 @@ from machine import Pin
 import network
 import time
 import creds
-# import esp
-# esp.osdebug(None)
+import gc
+gc.collect()
 
-# import gc
-# gc.collect()
+#### BLINK FUNCTION CONTROLS #####
 BLUE_WIFI_LED = Pin(2, Pin.OUT)
+BOARD_ADDRESS = "Not Initiated"
 
 def blink(number):
   while number > 0:
@@ -24,7 +24,8 @@ def blink(number):
     time.sleep_ms(300)
     number -= 1
 
-def main():
+#### MAIN ####
+def boot():
   SSID = creds.SSID
   PASSWORD = creds.PASSWORD
 
@@ -37,7 +38,8 @@ def main():
     pass
 
   print('Connection successful')
-  print(station.ifconfig())
+  BOARD_ADDRESS = station.ifconfig()[0]
+  print("Board Address: " + BOARD_ADDRESS)
 
   blink(5)
   print("Boot Done")
@@ -46,4 +48,4 @@ def main():
   time.sleep(4)
 
 if __name__ == "__main__":
-  main()
+  boot()
