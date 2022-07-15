@@ -16,12 +16,12 @@ gc.collect()
 BLUE_WIFI_LED = Pin(2, Pin.OUT)
 BOARD_ADDRESS = "Not Initiated"
 
-def blink(number):
+def blink(number, delay=300):
   while number > 0:
     BLUE_WIFI_LED.off()
-    time.sleep_ms(300)
+    time.sleep_ms(delay)
     BLUE_WIFI_LED.on()
-    time.sleep_ms(300)
+    time.sleep_ms(delay)
     number -= 1
 
 #### MAIN ####
@@ -41,7 +41,12 @@ def boot():
   BOARD_ADDRESS = station.ifconfig()[0]
   print("Board Address: " + BOARD_ADDRESS)
 
-  blink(5)
+  time.sleep(5)
+
+  # blink last number of ip 
+  ip_final = int(BOARD_ADDRESS.split(".")[-1]) + 1
+  blink(ip_final, delay=450)
+
   print("Boot Done")
 
   # delay for setup
